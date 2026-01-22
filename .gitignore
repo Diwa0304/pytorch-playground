@@ -1,6 +1,9 @@
 /mini_projects
-/wine_quality/winequality-red.csv
-/wine_quality/winequality-white.csv
+wine_quality/data
+wine_quality/red_wine_models
+/pytorch_mini_projects/wine_quality/red_wine_models
+wine_quality/results
+wine_quality/results_figures
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
