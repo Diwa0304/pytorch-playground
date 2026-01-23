@@ -3,14 +3,60 @@ from torch.utils.data import TensorDataset, DataLoader
 from utils.logging_utils import create_log, plot_training_results
 from logger import get_logger
 import torch.optim as optim
-from ray import train, tune
+from ray import tune
+from utils.evaluation_metrics import accuracy
 
+from torch import Tensor
+from typing import Tuple, Dict, Any, Type
+from torch.optim import Optimizer
+from torch import nn
 
 logger = get_logger(__name__)
 
 
-def train_dataset_v0(model,x_train_tensor,y_train_tensor,x_test_tensor,y_test_tensor,optimizer,loss_function,epochs,device,log_file,batch_size=32,is_tuning=False):
-    epoch_count = []
+def train_dataset_v0(
+            model  : nn.Module, # Change to specific class in case of accepting only that class and its children
+            x_train_tensor : Tensor,
+            y_train_tensor : Tensor,
+            x_test_tensor : Tensor,
+            y_test_tensor : Tensor,
+            optimizer : Optimizer,
+            loss_function : nn.CrossEntropyLoss, # Change to nn.Module in case of different type of loss - would require changes in the logic of the code.
+            epochs : int,
+            device : str,
+            log_file : str,
+            batch_size : int = 32,
+            is_tuning : bool = False,
+            save_fig : bool = True
+        ) -> Tuple[nn.Module,float]:
+
+    r""" Train a PyTorch model on the given dataset and evaluate performance. 
+    
+    This function performs training and evaluation over a specified number of epochs. 
+    It logs training and test loss values, computes accuracy, and optionally integrates with Ray Tune for hyperparameter optimization.
+    If not tuning, it saves the best model and generates plots/logs of training results.
+    Also saves the plot if save_fig is True 
+    
+    Args: 
+        model (nn.Module): The PyTorch model to train. 
+        x_train_tensor (Tensor): Training features as a tensor. 
+        y_train_tensor (Tensor): Training labels as a tensor. 
+        x_test_tensor (Tensor): Test features as a tensor.
+        y_test_tensor (Tensor): Test labels as a tensor. 
+        optimizer (Optimizer): Optimizer instance (e.g., Adam, SGD). 
+        loss_function (nn.CrossEntropyLoss): Loss function used for training. 
+        epochs (int): Number of training epochs. 
+        device (str): Device to run training on ("cpu" or "cuda"). 
+        log_file (str): Path to the log file for saving training results. 
+        batch_size (int, optional): Batch size for training. Defaults to 32. 
+        is_tuning (bool, optional): If True, reports metrics to Ray Tune. Defaults to False. 
+        save_fig (bool, optional) : If True, saves the plots generated. Defaults to True.
+        
+    Returns: 
+        Tuple[nn.Module, float]: The trained model and the best accuracy achieved. 
+    """
+
+ 
     train_loss_values = []
     test_loss_values = []
     accuracy_values = []
@@ -46,23 +92,21 @@ def train_dataset_v0(model,x_train_tensor,y_train_tensor,x_test_tensor,y_test_te
 
             test_loss_value = loss_function(test_pred, y_test_tensor.type(torch.long)).item()
 
-            preds = torch.softmax(test_pred, dim=1).argmax(dim=1)
-            accuracy = (preds == y_test_tensor).float().mean().item()
+            accuracy_metric = accuracy(y_logits = test_pred, y_test = y_test_tensor)
 
-            accuracy_values.append(accuracy)
-            epoch_count.append(epoch)
+            accuracy_values.append(accuracy_metric)
             train_loss_values.append(batch_loss/ member_count)
             test_loss_values.append(test_loss_value)
 
             if is_tuning:
-                tune.report({"accuracy":accuracy,"loss":test_loss_value})
+                tune.report({"accuracy":accuracy_metric,"loss":test_loss_value})
             else:
                 if test_loss_value < 0.8618305325508118:
                     best_test_loss = test_loss_value
                     torch.save(model.state_dict(), "red_wine_models/best_model.pth")
 
                 if epoch % 10 == 0:
-                    logger.info(f"Epoch : {epoch} \n Train Loss : {batch_loss/ member_count} \n Test Loss : {test_loss_value} \nAccuracy : {accuracy}")
+                    logger.info(f"Epoch : {epoch} \n\tTrain Loss : {batch_loss/ member_count} \n\tTest Loss : {test_loss_value} \n\tAccuracy : {accuracy_metric}\n")
 
 
     best_test_loss = min(test_loss_values)
@@ -74,14 +118,41 @@ def train_dataset_v0(model,x_train_tensor,y_train_tensor,x_test_tensor,y_test_te
 
     if not is_tuning:
         create_log(log_file,hyperparameters=model.__str__(),test_loss=best_test_loss,train_loss=train_loss_at_best_test,best_epoch=best_epoch,best_accuracy=best_accuracy, best_accuracy_epoch=best_accuracy_epoch)
-        plot_training_results(epoch_count=epoch_count,train_loss_values=train_loss_values,test_loss_values=test_loss_values,accuracy_values=accuracy_values,save_fig=True,fig_name=f"{model.__class__.__name__}_training_plot.png")
+        plot_training_results(train_loss_values=train_loss_values,test_loss_values=test_loss_values,accuracy_values=accuracy_values,save_fig=save_fig,fig_name=f"{model.__class__.__name__}_training_plot.png")
 
     return model, best_accuracy
 
 
 
-def ray_tune_wrapper(config, model_class, x_train_tensor,y_train_tensor,x_test_tensor,y_test_tensor):
+def ray_tune_wrapper(
+        config : Dict[str,Any], 
+        model_class : Type[nn.Module], 
+        x_train_tensor : Tensor,
+        y_train_tensor : Tensor,
+        x_test_tensor : Tensor,
+        y_test_tensor : Tensor
+    ) -> None:
+    r"""
+    Wrapper function for Ray Tune to train and evaluate a model with given hyperparameters.
+
+    This function initializes a model instance, optimizer, and loss function based on
+    the provided configuration. It then calls `train_dataset_v0` with tuning enabled,
+    allowing Ray Tune to collect accuracy and loss metrics for hyperparameter search.
+
+    Args:
+        config (Dict[str, Any]): Dictionary of hyperparameters (e.g., optimizer, lr, epochs, batch_size).
+        model_class (Type[nn.Module]): Model class to instantiate for training.
+        x_train_tensor (Tensor): Training features as a tensor.
+        y_train_tensor (Tensor): Training labels as a tensor.
+        x_test_tensor (Tensor): Test features as a tensor.
+        y_test_tensor (Tensor): Test labels as a tensor.
+
+    Returns:
+        None: Metrics are reported to Ray Tune; no explicit return value.
+    """
+    
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"device : {device}")
 
     tuning_model = model_class(input_dim=11, output_dim=6 ).to(device)
     
@@ -100,7 +171,7 @@ def ray_tune_wrapper(config, model_class, x_train_tensor,y_train_tensor,x_test_t
         optimizer=optimizer,
         loss_function=loss_function,
         epochs=config.get("epochs", 100),
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        device=device,
         log_file="ray_tune/ray_tune_logs.txt",
         batch_size=config.get("batch_size", 32),
         is_tuning=True
