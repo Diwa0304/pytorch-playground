@@ -4,6 +4,9 @@ wine_quality/red_wine_models
 /pytorch_mini_projects/wine_quality/red_wine_models
 wine_quality/results
 wine_quality/results_figures
+wine_quality/ray_tune
+wine_quality/ray_tune_results
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

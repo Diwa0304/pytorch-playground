@@ -2,14 +2,17 @@ import csv
 import os
 import matplotlib.pyplot as plt
 
-def create_log(filename,hyperparameters,test_loss,train_loss,best_epoch):
+def create_log(filename,hyperparameters,test_loss,train_loss,best_epoch,best_accuracy, best_accuracy_epoch):
+    directory = os.path.dirname(filename)
+    if directory and not os.path.exists(directory): 
+        os.makedirs(directory, exist_ok=True)
+    
     if not os.path.exists(filename):
-        os.makedirs('results', exist_ok=True)
         with open(filename, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
                 "HyperParameters", 
-                "best_test_loss", "train_loss_at_best_test", "best_epoch"
+                "best_test_loss", "train_loss_at_best_test", "best_epoch", "best_accuracy", "best_accuracy_epoch"
             ])
     with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
@@ -17,14 +20,17 @@ def create_log(filename,hyperparameters,test_loss,train_loss,best_epoch):
             hyperparameters,
             test_loss,
             train_loss,
-            best_epoch
+            best_epoch,
+            best_accuracy,
+            best_accuracy_epoch
         ])
 
 
-def plot_training_results(epoch_count,train_loss_values,test_loss_values,save_fig=False,fig_name=None,folder_path="results_figures"):
+def plot_training_results(epoch_count,train_loss_values,test_loss_values,accuracy_values,save_fig=False,fig_name=None,folder_path="results_figures"):
     
     plt.plot(epoch_count, train_loss_values, label='Train Loss')    
     plt.plot(epoch_count, test_loss_values, label='Test Loss')
+    plt.plot(epoch_count,accuracy_values, label="Accuracy")
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.title('Train and Test Loss over Epochs')
