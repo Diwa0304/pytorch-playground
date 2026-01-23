@@ -1,0 +1,6 @@
+{
+  "batch_size": 32,
+  "epochs": 300,
+  "lr": 0.010691202512836721,
+  "optimizer": "<class 'torch.optim.adam.Adam'>"
+}

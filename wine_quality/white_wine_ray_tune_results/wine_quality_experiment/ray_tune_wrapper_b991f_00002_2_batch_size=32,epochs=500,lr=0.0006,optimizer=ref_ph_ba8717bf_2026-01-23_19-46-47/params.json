@@ -1,0 +1,6 @@
+{
+  "batch_size": 32,
+  "epochs": 500,
+  "lr": 0.0006315354454800424,
+  "optimizer": "<class 'torch.optim.rmsprop.RMSprop'>"
+}

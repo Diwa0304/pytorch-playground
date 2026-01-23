@@ -3,6 +3,7 @@ from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
+import pandas as pd
 
 from typing import Union
 
@@ -59,3 +60,24 @@ def accuracy(
     accuracy = (preds == y_test).float().mean().item()
 
     return accuracy
+
+def plot_correlation_matrix(data : pd.DataFrame) -> None:
+    r"""
+    Plots and shows correlation matrix for the features in the given dataframe
+
+    Args:
+        data (pd.DataFrame)
+    
+    Returns:
+        None
+    """
+
+    corr = data.corr()
+
+    plt.imshow(corr, cmap='coolwarm', interpolation='none')
+
+    plt.colorbar()
+    plt.xticks(range(len(corr)), corr.columns, rotation=90)
+    plt.yticks(range(len(corr)), corr.columns)
+    plt.title('Correlation Matrix')
+    plt.show()

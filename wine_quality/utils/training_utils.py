@@ -25,9 +25,10 @@ def train_dataset_v0(
             epochs : int,
             device : str,
             log_file : str,
+            plots_folder_path : str = None,
             batch_size : int = 32,
             is_tuning : bool = False,
-            save_fig : bool = True
+            save_fig : bool = True,
         ) -> Tuple[nn.Module,float]:
 
     r""" Train a PyTorch model on the given dataset and evaluate performance. 
@@ -48,6 +49,7 @@ def train_dataset_v0(
         epochs (int): Number of training epochs. 
         device (str): Device to run training on ("cpu" or "cuda"). 
         log_file (str): Path to the log file for saving training results. 
+        plots_folder_path (str) : Path to the folder for saving plots
         batch_size (int, optional): Batch size for training. Defaults to 32. 
         is_tuning (bool, optional): If True, reports metrics to Ray Tune. Defaults to False. 
         save_fig (bool, optional) : If True, saves the plots generated. Defaults to True.
@@ -55,7 +57,8 @@ def train_dataset_v0(
     Returns: 
         Tuple[nn.Module, float]: The trained model and the best accuracy achieved. 
     """
-
+    if save_fig and not plots_folder_path and not is_tuning:
+        logger.error(f"Please enter the path to save the plots. \nIf you do not want to save plots switch save_fig parameter to False")
  
     train_loss_values = []
     test_loss_values = []
@@ -118,7 +121,14 @@ def train_dataset_v0(
 
     if not is_tuning:
         create_log(log_file,hyperparameters=model.__str__(),test_loss=best_test_loss,train_loss=train_loss_at_best_test,best_epoch=best_epoch,best_accuracy=best_accuracy, best_accuracy_epoch=best_accuracy_epoch)
-        plot_training_results(train_loss_values=train_loss_values,test_loss_values=test_loss_values,accuracy_values=accuracy_values,save_fig=save_fig,fig_name=f"{model.__class__.__name__}_training_plot.png")
+        
+        plot_training_results(
+            train_loss_values=train_loss_values,
+            test_loss_values=test_loss_values,
+            accuracy_values=accuracy_values,
+            save_fig=save_fig,
+            fig_name=f"{model.__class__.__name__}_training_plot.png",
+            folder_path=plots_folder_path)
 
     return model, best_accuracy
 
@@ -130,7 +140,10 @@ def ray_tune_wrapper(
         x_train_tensor : Tensor,
         y_train_tensor : Tensor,
         x_test_tensor : Tensor,
-        y_test_tensor : Tensor
+        y_test_tensor : Tensor,
+        input_dim : int,
+        output_dim :int,
+        log_file : str
     ) -> None:
     r"""
     Wrapper function for Ray Tune to train and evaluate a model with given hyperparameters.
@@ -154,7 +167,7 @@ def ray_tune_wrapper(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"device : {device}")
 
-    tuning_model = model_class(input_dim=11, output_dim=6 ).to(device)
+    tuning_model = model_class(input_dim=input_dim, output_dim=output_dim).to(device)
     
     optimizer_class = config.get("optimizer", optim.Adam)
     optimizer = optimizer_class(tuning_model.parameters(), lr=config.get("lr", 0.001))
@@ -172,7 +185,8 @@ def ray_tune_wrapper(
         loss_function=loss_function,
         epochs=config.get("epochs", 100),
         device=device,
-        log_file="ray_tune/ray_tune_logs.txt",
+        log_file=log_file,
         batch_size=config.get("batch_size", 32),
-        is_tuning=True
+        is_tuning=True,
+        save_fig=False
     )

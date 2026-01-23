@@ -1,0 +1,6 @@
+{
+  "batch_size": 16,
+  "epochs": 300,
+  "lr": 0.060710254685922234,
+  "optimizer": "<class 'torch.optim.nadam.NAdam'>"
+}

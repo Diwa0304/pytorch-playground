@@ -1,8 +1,12 @@
 import csv
 import os
 import matplotlib.pyplot as plt
+from logger import get_logger
 
 from typing import List, Optional
+
+
+logger = get_logger(__name__)
 
 def create_log(
         filename : str,
@@ -55,9 +59,9 @@ def plot_training_results(
         train_loss_values : List[float],
         test_loss_values : List[float],
         accuracy_values : List[float],
+        folder_path : str,
         save_fig : bool = False ,
         fig_name : Optional[str] = None,
-        folder_path : str = "results_figures"
     ) -> None:
     r"""
         plot 1 -> test loss and train loss against the epoch
