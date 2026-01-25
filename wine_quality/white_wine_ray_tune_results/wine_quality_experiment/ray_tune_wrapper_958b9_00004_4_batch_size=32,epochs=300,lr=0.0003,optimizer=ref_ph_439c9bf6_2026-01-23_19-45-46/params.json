@@ -1,6 +1,0 @@
-{
-  "batch_size": 32,
-  "epochs": 300,
-  "lr": 0.000300216620344024,
-  "optimizer": "<class 'torch.optim.adadelta.Adadelta'>"
-}

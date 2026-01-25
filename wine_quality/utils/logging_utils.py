@@ -59,7 +59,7 @@ def plot_training_results(
         train_loss_values : List[float],
         test_loss_values : List[float],
         accuracy_values : List[float],
-        folder_path : str,
+        folder_path : Optional[str],
         save_fig : bool = False ,
         fig_name : Optional[str] = None,
     ) -> None:

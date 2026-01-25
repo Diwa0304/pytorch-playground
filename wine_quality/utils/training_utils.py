@@ -7,7 +7,7 @@ from ray import tune
 from utils.evaluation_metrics import accuracy
 
 from torch import Tensor
-from typing import Tuple, Dict, Any, Type
+from typing import Tuple, Dict, Any, Type, Optional
 from torch.optim import Optimizer
 from torch import nn
 
@@ -21,14 +21,14 @@ def train_dataset_v0(
             x_test_tensor : Tensor,
             y_test_tensor : Tensor,
             optimizer : Optimizer,
-            loss_function : nn.CrossEntropyLoss, # Change to nn.Module in case of different type of loss - would require changes in the logic of the code.
+            loss_function : nn.CrossEntropyLoss, # Change to nn.Module in case of different type of loss - may require changes in the logic of the code.
             epochs : int,
             device : str,
-            log_file : str,
+            log_file : Optional[str] = None,
             plots_folder_path : str = None,
             batch_size : int = 32,
             is_tuning : bool = False,
-            save_fig : bool = True,
+            save_fig : bool = False,
         ) -> Tuple[nn.Module,float]:
 
     r""" Train a PyTorch model on the given dataset and evaluate performance. 
@@ -52,13 +52,18 @@ def train_dataset_v0(
         plots_folder_path (str) : Path to the folder for saving plots
         batch_size (int, optional): Batch size for training. Defaults to 32. 
         is_tuning (bool, optional): If True, reports metrics to Ray Tune. Defaults to False. 
-        save_fig (bool, optional) : If True, saves the plots generated. Defaults to True.
+        save_fig (bool, optional) : If True, saves the plots generated. Defaults to False.
         
     Returns: 
         Tuple[nn.Module, float]: The trained model and the best accuracy achieved. 
     """
     if save_fig and not plots_folder_path and not is_tuning:
-        logger.error(f"Please enter the path to save the plots. \nIf you do not want to save plots switch save_fig parameter to False")
+        raise ValueError( "plots_folder_path must be provided when save_fig=True and is_tuning=False. " 
+                         "If you do not want to save plots, set save_fig=False." ) 
+
+    if not log_file and not is_tuning:
+        logger.warning("Log file path not specified. Not logging results to csv.")
+
  
     train_loss_values = []
     test_loss_values = []
@@ -104,13 +109,11 @@ def train_dataset_v0(
             if is_tuning:
                 tune.report({"accuracy":accuracy_metric,"loss":test_loss_value})
             else:
-                if test_loss_value < 0.8618305325508118:
-                    best_test_loss = test_loss_value
-                    torch.save(model.state_dict(), "red_wine_models/best_model.pth")
-
                 if epoch % 10 == 0:
                     logger.info(f"Epoch : {epoch} \n\tTrain Loss : {batch_loss/ member_count} \n\tTest Loss : {test_loss_value} \n\tAccuracy : {accuracy_metric}\n")
 
+    if not test_loss_values or not accuracy_values: 
+        raise RuntimeError("No training iterations were completed. Check dataset size and epochs.")
 
     best_test_loss = min(test_loss_values)
     best_epoch = test_loss_values.index(best_test_loss)
@@ -120,7 +123,8 @@ def train_dataset_v0(
     best_accuracy_epoch = accuracy_values.index(best_accuracy)
 
     if not is_tuning:
-        create_log(log_file,hyperparameters=model.__str__(),test_loss=best_test_loss,train_loss=train_loss_at_best_test,best_epoch=best_epoch,best_accuracy=best_accuracy, best_accuracy_epoch=best_accuracy_epoch)
+        if log_file:
+            create_log(log_file,hyperparameters=model.__str__(),test_loss=best_test_loss,train_loss=train_loss_at_best_test,best_epoch=best_epoch,best_accuracy=best_accuracy, best_accuracy_epoch=best_accuracy_epoch)
         
         plot_training_results(
             train_loss_values=train_loss_values,
@@ -142,8 +146,7 @@ def ray_tune_wrapper(
         x_test_tensor : Tensor,
         y_test_tensor : Tensor,
         input_dim : int,
-        output_dim :int,
-        log_file : str
+        output_dim :int
     ) -> None:
     r"""
     Wrapper function for Ray Tune to train and evaluate a model with given hyperparameters.
@@ -159,6 +162,8 @@ def ray_tune_wrapper(
         y_train_tensor (Tensor): Training labels as a tensor.
         x_test_tensor (Tensor): Test features as a tensor.
         y_test_tensor (Tensor): Test labels as a tensor.
+        input_dim (int) : input layer features,
+        output_dim (int) : output layer features
 
     Returns:
         None: Metrics are reported to Ray Tune; no explicit return value.
@@ -185,8 +190,6 @@ def ray_tune_wrapper(
         loss_function=loss_function,
         epochs=config.get("epochs", 100),
         device=device,
-        log_file=log_file,
         batch_size=config.get("batch_size", 32),
-        is_tuning=True,
-        save_fig=False
+        is_tuning=True
     )

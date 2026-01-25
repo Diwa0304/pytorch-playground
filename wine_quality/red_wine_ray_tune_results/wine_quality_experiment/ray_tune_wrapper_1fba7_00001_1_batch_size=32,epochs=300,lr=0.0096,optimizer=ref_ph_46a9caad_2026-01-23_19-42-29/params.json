@@ -1,6 +1,0 @@
-{
-  "batch_size": 32,
-  "epochs": 300,
-  "lr": 0.009589210466962594,
-  "optimizer": "<class 'torch.optim.sgd.SGD'>"
-}
