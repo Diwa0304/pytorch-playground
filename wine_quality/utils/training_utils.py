@@ -5,6 +5,9 @@ from logger import get_logger
 import torch.optim as optim
 from ray import tune
 from utils.evaluation_metrics import accuracy
+import os
+import tempfile
+from ray.tune import Checkpoint
 
 from torch import Tensor
 from typing import Tuple, Dict, Any, Type, Optional
