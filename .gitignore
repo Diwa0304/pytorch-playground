@@ -1,5 +1,7 @@
 /mini_projects
 wine_quality/data
+pets_vision/data
+**/data
 wine_quality/red_wine_models
 /pytorch_mini_projects/wine_quality/red_wine_models
 wine_quality/results
